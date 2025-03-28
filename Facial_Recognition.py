@@ -2,56 +2,45 @@ import cv2
 import pickle
 import face_recognition
 
-cap = cv2.VideoCapture(0) 
-cap.set(3,640)
-cap.set(4,480)
+cap = cv2.VideoCapture(0)
+cap.set(3, 640)
+cap.set(4, 480)
 
-# Load the encoding file
-print("Loading the encoded file..... ")
-file = open('EncodeFile.p','rb')
-encodeListKnownwithIds = pickle.load(file)
-file.close()
-encodeListKnown, studentIds = encodeListKnownwithIds
-print(studentIds)
+# Load Encodings
+with open('EncodeFile.p', 'rb') as file:
+    encodeListKnown, studentIds = pickle.load(file)
 
-print("Encoded file complete")
+print("Encodings Loaded...")
 
-# Loop to capture frames from the webcam
-while True: 
+while True:
     success, img = cap.read()
+    imgS = cv2.resize(img, (0, 0), None, 0.25, 0.25)
+    imgS = cv2.cvtColor(imgS, cv2.COLOR_BGR2RGB)
 
-    imgS = cv2.resize(img, (0, 0), None, 0.25, 0.25)  # Resize image to reduce computation
-    imgS = cv2.cvtColor(imgS, cv2.COLOR_BGR2RGB)  # Convert the image to RGB format for face_recognition
+    faceCurrentFrame = face_recognition.face_locations(imgS)
+    encodeCurrentFrame = face_recognition.face_encodings(imgS, faceCurrentFrame)
 
-    faceCurrentFrame = face_recognition.face_locations(imgS)   # Detect faces in the current frame
-    encodecurrentFrame = face_recognition.face_encodings(imgS, faceCurrentFrame)  # Get encodings of the current frame
+    for encodeFace, faceLoc in zip(encodeCurrentFrame, faceCurrentFrame):
+        faceDistance = face_recognition.face_distance(encodeListKnown, encodeFace)
+        minDistance = min(faceDistance)
+        matchIndex = faceDistance.tolist().index(minDistance)
 
-    for encodeface, faceLoC in zip(encodecurrentFrame, faceCurrentFrame):
-        matches = face_recognition.compare_faces(encodeListKnown, encodeface)
-        facedistance = face_recognition.face_distance(encodeListKnown, encodeface)
+        y1, x2, y2, x1 = faceLoc
+        y1, x2, y2, x1 = y1*4, x2*4, y2*4, x1*4
 
-        print("matches", matches)
-        print("facedistance", facedistance)
+        if minDistance < 0.45:
+            name = studentIds[matchIndex]
+            color = (0, 255, 0)
+        else:
+            name = "Unknown"
+            color = (0, 0, 255)
 
-        # Check if there is a match
-        if True in matches:
-            first_match_index = matches.index(True)  # Get the index of the matched face
-            name = studentIds[first_match_index]  # Get the name from studentIds list using the matched index
-            print(f"Found {name} in the frame!")
+        cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+        cv2.putText(img, name, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
 
-            # You can now display the image associated with the matched face (if you have image files)
-            # Assuming 'studentIds' is a list of names, and you have an image associated with each person
-
-            # Load the image (assuming you have images named by the studentId or you can map the ids to file names)
-            image_path = f"images/{name}.jpg"  # Update this line according to where your images are stored
-            match_image = cv2.imread(image_path)  # Read the image
-            if match_image is not None:
-                cv2.imshow(f"Matched face: {name}", match_image)  # Show the matched image in a new window
-
-        # Draw a rectangle around the face
-        top, right, bottom, left = faceLoC
-        cv2.rectangle(img, (left, top), (right, bottom), (0, 255, 0), 2)  # Draw rectangle
-
-    # Show the live video stream with the rectangle drawn around faces
     cv2.imshow("Facial Recognition", img)
-    cv2.waitKey(1)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+cap.release()
+cv2.destroyAllWindows()
