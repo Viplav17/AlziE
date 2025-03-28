@@ -1,80 +1,108 @@
 import cv2
-import pickle
 import face_recognition
 import numpy as np
+import os
+import threading
 
-cap = cv2.VideoCapture(0)
-cap.set(3, 480)  # Lowered resolution for smoother performance
-cap.set(4, 360)
+# Constants
+TEXT_COLOR = (0, 255, 0)  # Green for recognized faces
+UNKNOWN_COLOR = (0, 0, 255)  # Red for unknown faces
+FONT = cv2.FONT_HERSHEY_SIMPLEX
+FRAME_DOWNSCALE = 0.6  # Increase downscaling for smoother performance
+FRAME_SKIP = 1  # Process every frame for real-time performance
+LOCK = threading.Lock()
 
-# Load the encoding file
-print("Loading the encoded file...")
-with open('EncodeFile.p', 'rb') as file:
-    encodeListKnownwithIds = pickle.load(file)
-encodeListKnown, studentIds = encodeListKnownwithIds
-print("Known IDs:", studentIds)
-print("Encoded file loaded successfully.")
+# Global variables for threading
+face_locations = []
+face_encodings = []
+frame_skip_count = 0
+processed_frame = None
 
-frame_count = 0
+# Load known face images and encode them
+def load_known_faces(image_folder="Picture_Source"):
+    known_encodings = []
+    known_labels = []
 
-# Use a smaller resolution for the frame (to boost performance)
-frame_width = 320
-frame_height = 240
+    for image_id in range(101, 106):  # Assuming image IDs are 101 to 105
+        image_path = os.path.join(image_folder, f"{image_id}.jpg")
+        if os.path.exists(image_path):
+            image = face_recognition.load_image_file(image_path)
+            encodings = face_recognition.face_encodings(image)
+            if encodings:  # Check if a face was found
+                known_encodings.append(encodings[0])
+                known_labels.append(str(image_id))
+    
+    return known_encodings, known_labels
 
-# Capture frame at lower resolution
-cap.set(3, frame_width)  # Width
-cap.set(4, frame_height)  # Height
+# Load known faces
+known_encodings, known_labels = load_known_faces()
 
-# Use NumPy arrays for better performance
-encodeListKnown = np.array(encodeListKnown)
+# Initialize webcam with DirectShow backend for better performance (Windows fix)
+cap = cv2.VideoCapture(0, cv2.CAP_DSHOW)
+cap.set(cv2.CAP_PROP_FPS, 30)  # Ensure smoother frame rate
+
+def process_faces(frame):
+    """Threaded function to process face recognition asynchronously."""
+    global face_locations, face_encodings, frame_skip_count, processed_frame
+    rgb_small_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+    with LOCK:
+        face_locations = face_recognition.face_locations(rgb_small_frame, model="hog")
+        face_encodings = face_recognition.face_encodings(rgb_small_frame, face_locations)
+        frame_skip_count = 0  # Reset frame skip count after processing
+        processed_frame = frame.copy()  # Save processed frame for rendering
+
+# Start face processing thread
+processing_thread = None
 
 while True:
-    success, img = cap.read()
-    if not success:
+    ret, frame = cap.read()
+    if not ret:
         break
 
-    frame_count += 1
+    # Resize frame for faster processing
+    small_frame = cv2.resize(frame, (0, 0), fx=FRAME_DOWNSCALE, fy=FRAME_DOWNSCALE, interpolation=cv2.INTER_LINEAR)
 
-    # Process every 3rd frame for better performance
-    if frame_count % 3 == 0:
-        # Resize the image for faster processing
-        imgS = cv2.resize(img, (frame_width, frame_height))
-        imgS = cv2.cvtColor(imgS, cv2.COLOR_BGR2RGB)
+    # Run face recognition in a separate thread every `FRAME_SKIP` frames
+    if frame_skip_count >= FRAME_SKIP:
+        if processing_thread is None or not processing_thread.is_alive():
+            processing_thread = threading.Thread(target=process_faces, args=(small_frame,))
+            processing_thread.start()
 
-        # Detect faces and encodings
-        faceCurrentFrame = face_recognition.face_locations(imgS)
-        encodecurrentFrame = face_recognition.face_encodings(imgS, faceCurrentFrame)
+    frame_skip_count += 1
 
-        for encodeface, faceLoc in zip(encodecurrentFrame, faceCurrentFrame):
-            # Compare the detected face with known faces using NumPy for efficient comparison
-            faceDistance = face_recognition.face_distance(encodeListKnown, encodeface)
-            min_distance = np.min(faceDistance)
-
+    # Draw face rectangles from last processed frame
+    with LOCK:
+        for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+            matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=0.38)  # Stricter matching
             name = "Unknown"
-            threshold = 0.45  # You can adjust this threshold based on your requirements
+            confidence = 0.0  # Default confidence for unknown faces
 
-            # If the closest match is below the threshold, identify it
-            if min_distance < threshold:
-                matchIndex = np.argmin(faceDistance)
-                name = str(studentIds[matchIndex])
-                confidence = round((1 - min_distance) * 100, 2)
-                print(f'Found {name} with confidence: {confidence}%')
+            face_distances = face_recognition.face_distance(known_encodings, face_encoding)
+            best_match_index = np.argmin(face_distances)
 
-            # Scale back to original size for bounding box
-            top, right, bottom, left = faceLoc
-            top, right, bottom, left = top * 4, right * 4, bottom * 4, left * 4
+            if matches[best_match_index]:
+                name = known_labels[best_match_index]
+                confidence = (1 - face_distances[best_match_index]) * 100  # Convert to percentage
 
-            # Draw rectangle and ID on the original image
-            cv2.rectangle(img, (left, top), (right, bottom), (0, 255, 0), 2)
-            cv2.rectangle(img, (left, bottom - 35), (right, bottom), (0, 255, 0), cv2.FILLED)
-            cv2.putText(img, name, (left + 6, bottom - 6), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+            # Scale back the coordinates to match original frame size
+            top, right, bottom, left = [int(coord / FRAME_DOWNSCALE) for coord in [top, right, bottom, left]]
 
-    # Show webcam
-    cv2.imshow("Facial Recognition", img)
+            # Draw rectangle around the face
+            color = TEXT_COLOR if name != "Unknown" else UNKNOWN_COLOR
+            cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
+            
+            # Display name and confidence level
+            text = f"{name} ({confidence:.2f}%)"
+            cv2.putText(frame, text, (left, top - 10), FONT, 0.6, color, 2)
 
-    # Press 'q' to exit
+    # Show the frame
+    cv2.imshow("Face Recognition", frame)
+
+    # Press 'q' to quit
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break
 
+# Release the webcam and close all windows
 cap.release()
 cv2.destroyAllWindows()
