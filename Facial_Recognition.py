@@ -2,56 +2,60 @@ import cv2
 import pickle
 import face_recognition
 
-cap = cv2.VideoCapture(0) 
-cap.set(3,640)
-cap.set(4,480)
+cap = cv2.VideoCapture(0)
+cap.set(3, 640)
+cap.set(4, 480)
 
 # Load the encoding file
-print("Loading the encoded file..... ")
-file = open('EncodeFile.p','rb')
-encodeListKnownwithIds = pickle.load(file)
-file.close()
+print("Loading the encoded file...")
+with open('EncodeFile.p', 'rb') as file:
+    encodeListKnownwithIds = pickle.load(file)
 encodeListKnown, studentIds = encodeListKnownwithIds
-print(studentIds)
+print("Known IDs:", studentIds)
+print("Encoded file loaded successfully.")
 
-print("Encoded file complete")
-
-# Loop to capture frames from the webcam
-while True: 
+# Webcam loop
+while True:
     success, img = cap.read()
 
-    imgS = cv2.resize(img, (0, 0), None, 0.25, 0.25)  # Resize image to reduce computation
-    imgS = cv2.cvtColor(imgS, cv2.COLOR_BGR2RGB)  # Convert the image to RGB format for face_recognition
+    # Resize and convert for face_recognition processing
+    imgS = cv2.resize(img, (0, 0), None, 0.25, 0.25)
+    imgS = cv2.cvtColor(imgS, cv2.COLOR_BGR2RGB)
 
-    faceCurrentFrame = face_recognition.face_locations(imgS)   # Detect faces in the current frame
-    encodecurrentFrame = face_recognition.face_encodings(imgS, faceCurrentFrame)  # Get encodings of the current frame
+    # Detect faces and encode
+    faceCurrentFrame = face_recognition.face_locations(imgS)
+    encodecurrentFrame = face_recognition.face_encodings(imgS, faceCurrentFrame)
 
-    for encodeface, faceLoC in zip(encodecurrentFrame, faceCurrentFrame):
+    # Loop through detected faces
+    for encodeface, faceLoc in zip(encodecurrentFrame, faceCurrentFrame):
         matches = face_recognition.compare_faces(encodeListKnown, encodeface)
-        facedistance = face_recognition.face_distance(encodeListKnown, encodeface)
+        faceDistance = face_recognition.face_distance(encodeListKnown, encodeface)
 
-        print("matches", matches)
-        print("facedistance", facedistance)
+        name = "Unknown"
 
-        # Check if there is a match
+        # If match found
         if True in matches:
-            first_match_index = matches.index(True)  # Get the index of the matched face
-            name = studentIds[first_match_index]  # Get the name from studentIds list using the matched index
-            print(f"Found {name} in the frame!")
+            matchIndex = matches.index(True)
+            name = str(studentIds[matchIndex])
+            print('Found a match')
+            print(name)
 
-            # You can now display the image associated with the matched face (if you have image files)
-            # Assuming 'studentIds' is a list of names, and you have an image associated with each person
+        # Scale back face location to original image size
+        top, right, bottom, left = faceLoc
+        top, right, bottom, left = top * 4, right * 4, bottom * 4, left * 4
 
-            # Load the image (assuming you have images named by the studentId or you can map the ids to file names)
-            image_path = f"images/{name}.jpg"  # Update this line according to where your images are stored
-            match_image = cv2.imread(image_path)  # Read the image
-            if match_image is not None:
-                cv2.imshow(f"Matched face: {name}", match_image)  # Show the matched image in a new window
+        # Draw rectangle and ID
+        cv2.rectangle(img, (left, top), (right, bottom), (0, 255, 0), 2)
+        cv2.rectangle(img, (left, bottom - 35), (right, bottom), (0, 255, 0), cv2.FILLED)
+        cv2.putText(img, name, (left + 6, bottom - 6), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
-        # Draw a rectangle around the face
-        top, right, bottom, left = faceLoC
-        cv2.rectangle(img, (left, top), (right, bottom), (0, 255, 0), 2)  # Draw rectangle
-
-    # Show the live video stream with the rectangle drawn around faces
+    # Show webcam
     cv2.imshow("Facial Recognition", img)
-    cv2.waitKey(1)
+
+    # Press 'q' to exit
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
+
+# Cleanup
+cap.release()
+cv2.destroyAllWindows()
