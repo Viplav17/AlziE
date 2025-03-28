@@ -2,6 +2,7 @@ import cv2
 import pickle
 import face_recognition
 import numpy as np
+import cvzone
 
 cap = cv2.VideoCapture(0)
 cap.set(3, 480)  # Lowered resolution for smoother performance
