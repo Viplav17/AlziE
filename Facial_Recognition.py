@@ -18,20 +18,32 @@ face_encodings = []
 frame_skip_count = 0
 processed_frame = None
 
-# Load known face images and encode them
 def load_known_faces(image_folder="Picture_Source"):
     known_encodings = []
     known_labels = []
 
-    for image_id in range(101, 106):  # Assuming image IDs are 101 to 105
-        image_path = os.path.join(image_folder, f"{image_id}.jpg")
-        if os.path.exists(image_path):
-            image = face_recognition.load_image_file(image_path)
-            encodings = face_recognition.face_encodings(image)
-            if encodings:  # Check if a face was found
+    for person_id in range(101, 106):  # Assuming IDs are from 101 to 105
+        person_folder = os.path.join(image_folder, str(person_id))
+        if not os.path.exists(person_folder):
+            continue  # Skip if folder does not exist
+        
+        for image_name in os.listdir(person_folder):
+            image_path = os.path.join(person_folder, image_name)
+
+            # Read the image using OpenCV
+            image = cv2.imread(image_path)
+            if image is None:
+                print(f"Skipping {image_path}: Unreadable format.")
+                continue  # Skip unreadable images
+
+            # Convert from BGR (OpenCV) to RGB (face_recognition uses RGB)
+            image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            encodings = face_recognition.face_encodings(image_rgb)
+
+            if encodings:  # Ensure a face is detected
                 known_encodings.append(encodings[0])
-                known_labels.append(str(image_id))
-    
+                known_labels.append(str(person_id))
+
     return known_encodings, known_labels
 
 # Load known faces
@@ -58,7 +70,6 @@ processing_thread = None
 while True:
     ret, frame = cap.read()
     if not ret:
-        print("Failed to grab frame!")
         break
 
     # Resize frame for faster processing
@@ -74,35 +85,28 @@ while True:
 
     # Draw face rectangles from last processed frame
     with LOCK:
-        if face_locations and face_encodings:  # Ensure faces are detected
-            for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
-                matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=0.38)  # Stricter matching
-                name = "Unknown"
-                confidence = 0.0  # Default confidence for unknown faces
+        for (top, right, bottom, left), face_encoding in zip(face_locations, face_encodings):
+            matches = face_recognition.compare_faces(known_encodings, face_encoding, tolerance=0.38)  # Stricter matching
+            name = "Unknown"
+            confidence = 0.0  # Default confidence for unknown faces
 
-                face_distances = face_recognition.face_distance(known_encodings, face_encoding)
-                
-                if face_distances:  # Ensure face_distances is not empty
-                    best_match_index = np.argmin(face_distances)
-                    
-                    if matches[best_match_index]:
-                        name = known_labels[best_match_index]
-                        confidence = (1 - face_distances[best_match_index]) * 100  # Convert to percentage
-                else:
-                    best_match_index = -1  # No matching face distances
-                
-                # Scale back the coordinates to match original frame size
-                top, right, bottom, left = [int(coord / FRAME_DOWNSCALE) for coord in [top, right, bottom, left]]
+            face_distances = face_recognition.face_distance(known_encodings, face_encoding)
+            best_match_index = np.argmin(face_distances)
 
-                # Draw rectangle around the face
-                color = TEXT_COLOR if name != "Unknown" else UNKNOWN_COLOR
-                cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
+            if matches[best_match_index]:
+                name = known_labels[best_match_index]
+                confidence = (1 - face_distances[best_match_index]) * 100  # Convert to percentage
 
-                # Display name and confidence level
-                text = f"{name} ({confidence:.2f}%)"
-                cv2.putText(frame, text, (left, top - 10), FONT, 0.6, color, 2)
-        else:
-            print("No faces detected or no face encodings found.")
+            # Scale back the coordinates to match original frame size
+            top, right, bottom, left = [int(coord / FRAME_DOWNSCALE) for coord in [top, right, bottom, left]]
+
+            # Draw rectangle around the face
+            color = TEXT_COLOR if name != "Unknown" else UNKNOWN_COLOR
+            cv2.rectangle(frame, (left, top), (right, bottom), color, 2)
+            
+            # Display name and confidence level
+            text = f"{name} ({confidence:.2f}%)"
+            cv2.putText(frame, text, (left, top - 10), FONT, 0.6, color, 2)
 
     # Show the frame
     cv2.imshow("Face Recognition", frame)
