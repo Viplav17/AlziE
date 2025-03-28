@@ -31,12 +31,17 @@ while True:
         if minDistance < 0.45:
             name = studentIds[matchIndex]
             color = (0, 255, 0)
+            print(name)
+            
         else:
             name = "Unknown"
             color = (0, 0, 255)
 
         cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
         cv2.putText(img, name, (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 1, color, 2)
+
+        
+
 
     cv2.imshow("Facial Recognition", img)
     if cv2.waitKey(1) & 0xFF == ord('q'):
