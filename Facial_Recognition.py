@@ -31,8 +31,9 @@ while True:
         if minDistance < 0.45:
             name = studentIds[matchIndex]
             color = (0, 255, 0)
+            print("Known Face Detected")
             print(name)
-            
+
         else:
             name = "Unknown"
             color = (0, 0, 255)
