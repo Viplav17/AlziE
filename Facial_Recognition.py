@@ -59,12 +59,4 @@ while True:
         break
 
 cap.release()
-<<<<<<< HEAD
 cv2.destroyAllWindows()
-
-
-def ID_from_Image():
-    return name
-=======
-cv2.destroyAllWindows()
->>>>>>> e05bbb43e9f8fe8c4b79eda6b69e3d5e49433a7b

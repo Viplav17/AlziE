@@ -26,6 +26,7 @@ def recognize_speech():
 def main():
     print("Continuous Speech Recognition Initialized.")
     text = recognize_speech()
+    return text
 
 
 if __name__ == "__main__":

@@ -122,10 +122,10 @@ if __name__ == "__main__":
         "Thank you for using our text to speech service."
     ]
     
-    # Generate audio files
-    for i, text in enumerate(texts, 1):
-        filename = f"soothing_voice_{i}"
+
+    def inp_text_to_speech(text):
+        filename = "text_to_speech_audio"
         audio_system.generate_soothing_voice(text, filename)
-    
-    # Automatically run the audio player
-    audio_system.run_audio_player()
+
+        audio_system.run_audio_player()
+

@@ -51,11 +51,9 @@ class SentimentAnalyzer:
             if phrase in lower_text:
                 # Return complete result including processed text
                 return {
-                    'original_text': self.text,
-                    'processed_text': self.text,  # Using original as processed for harmful phrases
                     'polarity': data['polarity'],
                     'sentiment': data['sentiment']
-                }
+                }, data['polarity']
         
         # Normal processing for non-harmful phrases
         if not self.filtered_text:
@@ -100,7 +98,3 @@ if __name__ == "__main__":
 
 
 
-def polarity_value(self):
-    """Extracts just the polarity score from analyze_sentiment()"""
-    sentiment_result = self.analyze_sentiment()
-    return sentiment_result['polarity']
