@@ -97,3 +97,8 @@ if __name__ == "__main__":
             print("\n⚠️ WARNING: Harmful content detected! Please seek help if needed. ⚠️")
     else:
         print("No speech detected")
+
+
+
+    def polarity_value(polarity): 
+        return polarity

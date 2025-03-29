@@ -16,6 +16,7 @@ def recognize_speech():
                 print("Recognizing...")
                 text = recognizer.recognize_google(audio)
                 print(f"You said: {text}")
+                return text
         
         except sr.UnknownValueError:
             print("Sorry, I could not understand the audio.")
@@ -24,7 +25,8 @@ def recognize_speech():
 # Main function to start continuous speech recognition
 def main():
     print("Continuous Speech Recognition Initialized.")
-    recognize_speech()
+    text = recognize_speech()
+
 
 if __name__ == "__main__":
     main()
