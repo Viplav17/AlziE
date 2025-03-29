@@ -100,5 +100,7 @@ if __name__ == "__main__":
 
 
 
-    def polarity_value(polarity): 
-        return polarity
+def polarity_value(self):
+    """Extracts just the polarity score from analyze_sentiment()"""
+    sentiment_result = self.analyze_sentiment()
+    return sentiment_result['polarity']
